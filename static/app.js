@@ -49,7 +49,8 @@ function connectWS() {
     statusDot.classList.add("connected");
     statusTxt.textContent = "Connected";
     log("WebSocket connected to server");
-    ws.send("Client Connected");
+    // UPDATED: Sending JSON instead of plain text
+    ws.send(JSON.stringify({ event: "connected" }));
   });
 
   ws.addEventListener("message", (event) => {
@@ -73,6 +74,27 @@ function connectWS() {
     log("WebSocket error");
   });
 }
+
+// ---- Browser Event Proctoring ----
+
+// 1. Detect if the user switches tabs or minimizes the browser
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    // The user can't see the page anymore!
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ event: "tab_switch" }));
+    }
+  } else {
+    log("System: User returned to the interview tab.");
+  }
+});
+
+// 2. Detect if the user clicks outside the window (e.g., opening a notes app)
+window.addEventListener("blur", () => {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ event: "window_blur" }));
+  }
+});
 
 // ---- Boot ----
 initCamera();
