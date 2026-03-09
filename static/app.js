@@ -53,15 +53,27 @@ function connectWS() {
     ws.send(JSON.stringify({ event: "connected" }));
   });
 
-  ws.addEventListener("message", (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      log("Server: " + data.message);
-      setRisk(data.risk_score);
-    } catch {
-      log("Server: " + event.data);
-    }
-  });
+    ws.addEventListener("message", (event) => {
+        try {
+        const data = JSON.parse(event.data);
+        
+        // Update the UI
+        setRisk(data.risk_score);
+        
+        // Only print to log if it's a warning, otherwise the log gets too spammy
+        if (data.message.includes("WARNING")) {
+            log("Server: " + data.message);
+        }
+
+        // Draw the AI boxes if vision data is present
+        if (data.type === "vision_update" && data.vision_data) {
+            drawVision(data.vision_data);
+        }
+        
+        } catch {
+        log("Server: " + event.data);
+        }
+    });
 
   ws.addEventListener("close", () => {
     statusDot.classList.remove("connected");
@@ -127,3 +139,46 @@ setInterval(() => {
     }));
   }
 }, 1000);
+
+// ---- AI Vision Overlay ----
+
+const aiToggle = document.getElementById("aiToggle");
+const overlayCanvas = document.getElementById("overlay");
+const overlayCtx = overlayCanvas.getContext("2d");
+let showVision = false;
+
+// Listen for toggle switch
+aiToggle.addEventListener("change", (e) => {
+  showVision = e.target.checked;
+  if (!showVision) {
+    // Clear the canvas when turned off
+    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+  }
+});
+
+// Function to draw bounding boxes
+function drawVision(visionData) {
+  if (!showVision) return;
+
+  // Make sure canvas dimensions perfectly match the video stream
+  overlayCanvas.width = videoElement.videoWidth;
+  overlayCanvas.height = videoElement.videoHeight;
+  
+  // Clear previous frame's drawings
+  overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+  
+  // Setup drawing style (Green Box)
+  overlayCtx.strokeStyle = "#22c55e"; 
+  overlayCtx.lineWidth = 4;
+
+  // Draw each face found
+  visionData.forEach(box => {
+    // MediaPipe sends percentages (0.0 to 1.0), so multiply by actual pixels
+    const x = box.xmin * overlayCanvas.width;
+    const y = box.ymin * overlayCanvas.height;
+    const w = box.width * overlayCanvas.width;
+    const h = box.height * overlayCanvas.height;
+    
+    overlayCtx.strokeRect(x, y, w, h);
+  });
+}
