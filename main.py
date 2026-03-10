@@ -11,10 +11,14 @@ import mediapipe as mp
 app = FastAPI(title="AI Proctor - Phase 0")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- Initialize MediaPipe Face Detection ---
+# --- Initialize MediaPipe Models ---
+# 1. Bounding Box Detector (Fast, counts people)
 mp_face_detection = mp.solutions.face_detection
-# model_selection=0 is best for short-range (webcam) faces
 face_detection = mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.5)
+
+# 2. FaceMesh Detector (Heavy, extracts 468 points)
+mp_face_mesh = mp.solutions.face_mesh
+face_mesh = mp_face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1, min_detection_confidence=0.5)
 
 @app.get("/")
 async def serve_index():
@@ -41,7 +45,7 @@ async def websocket_endpoint(ws: WebSocket):
                 elif event_type == "connected":
                     msg = "Monitoring started."
                 
-                # --- NEW: Vision Pipeline ---
+                # --- Vision Pipeline ---
                 elif event_type == "frame":
                     image_data = payload.get("image", "")
                     if "," in image_data:
@@ -50,43 +54,67 @@ async def websocket_endpoint(ws: WebSocket):
                         np_arr = np.frombuffer(img_bytes, np.uint8)
                         img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
                         
-                        # MediaPipe requires RGB format, OpenCV uses BGR
                         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                        results = face_detection.process(img_rgb)
                         
+                        # Step 1: Always run fast face detection to count people
+                        results_detection = face_detection.process(img_rgb)
                         face_count = 0
                         bounding_boxes = []
                         
-                        # If faces are found, extract their coordinates
-                        if results.detections:
-                            face_count = len(results.detections)
-                            for detection in results.detections:
+                        if results_detection.detections:
+                            face_count = len(results_detection.detections)
+                            for detection in results_detection.detections:
                                 bbox = detection.location_data.relative_bounding_box
                                 bounding_boxes.append({
-                                    "xmin": bbox.xmin,
-                                    "ymin": bbox.ymin,
-                                    "width": bbox.width,
-                                    "height": bbox.height
+                                    "xmin": bbox.xmin, "ymin": bbox.ymin,
+                                    "width": bbox.width, "height": bbox.height
                                 })
                         
-                        # Apply Vision Rules
+                        # Apply Vision Rules & Determine Hybrid UI Payload
+                        # Apply Vision Rules & Determine Hybrid UI Payload
                         msg = "Normal behavior."
+                        vision_data = []
+                        vision_type = "none"
+
                         if face_count == 0:
                             risk_score = min(100, risk_score + 10)
                             msg = "WARNING: Candidate not found!"
+                            
                         elif face_count > 1:
+                            # Crowd detected! Fall back to bounding boxes
                             risk_score = min(100, risk_score + 25)
                             msg = f"WARNING: {face_count} faces detected!"
+                            vision_data = bounding_boxes
+                            vision_type = "boxes"
+
+                        elif face_count == 1:
+                            # --- THE FIX: Candidate is alone. Reduce the risk score! ---
+                            if risk_score > 0:
+                                risk_score = max(0, risk_score - 1)
+                                
+                            # Run deep FaceMesh analysis
+                            mesh_results = face_mesh.process(img_rgb)
+                            if mesh_results.multi_face_landmarks:
+                                for landmark in mesh_results.multi_face_landmarks[0].landmark:
+                                    vision_data.append({"x": landmark.x, "y": landmark.y})
+                            vision_type = "mesh"
+                            
+                        elif face_count > 1:
+                            # Step 3: Crowd detected! Fall back to bounding boxes
+                            risk_score = min(100, risk_score + 25)
+                            msg = f"WARNING: {face_count} faces detected!"
+                            vision_data = bounding_boxes
+                            vision_type = "boxes"
+                            
                         elif risk_score > 0:
-                            # Gentle decay: If they are behaving, reduce score slightly
                             risk_score = max(0, risk_score - 1) 
 
-                        # Send the score AND the coordinates back to the UI
                         response = {
                             "status": "connected",
                             "risk_score": risk_score,
                             "message": msg,
-                            "vision_data": bounding_boxes, # Only sending coordinates!
+                            "vision_data": vision_data,
+                            "vision_type": vision_type, # Tell frontend what to draw
                             "type": "vision_update"
                         }
                         await ws.send_text(json.dumps(response))
@@ -94,7 +122,6 @@ async def websocket_endpoint(ws: WebSocket):
                 else:
                     msg = "Unknown event logged."
 
-                # Send response for non-frame events
                 response = {
                     "status": "connected",
                     "risk_score": risk_score,
@@ -110,3 +137,4 @@ async def websocket_endpoint(ws: WebSocket):
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    
