@@ -121,6 +121,7 @@ const captureCtx = captureCanvas.getContext("2d");
 const videoElement = document.getElementById("cam");
 
 // ⭐️ Central Control: Change this value to automatically scale penalties
+// ⭐️ Central Control: Change this value to automatically scale penalties
 const FRAME_INTERVAL = 250; // 250ms = 4 FPS. Set to 1000 for 1 FPS.
 
 setInterval(() => {
@@ -131,10 +132,14 @@ setInterval(() => {
     captureCtx.drawImage(videoElement, 0, 0, captureCanvas.width, captureCanvas.height);
     const base64Image = captureCanvas.toDataURL("image/jpeg", 0.5);
     
+    // --- NEW: Get absolute truth of the window's focus state ---
+    const isBackground = document.hidden || !document.hasFocus();
+    
     ws.send(JSON.stringify({
       event: "frame",
       image: base64Image,
-      frame_interval: FRAME_INTERVAL // Send the current speed to Python
+      frame_interval: FRAME_INTERVAL,
+      is_background: isBackground // Send the exact state to Python every frame
     }));
   }
 }, FRAME_INTERVAL);

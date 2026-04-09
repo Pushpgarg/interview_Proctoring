@@ -60,6 +60,7 @@ async def websocket_endpoint(ws: WebSocket):
                     frame_interval = payload.get("frame_interval", 1000)
                     time_scale = frame_interval / 1000.0
                     
+                    is_in_background = payload.get("is_background", is_in_background)
                     if "," in image_data:
                         base64_str = image_data.split(",")[1]
                         img_bytes = base64.b64decode(base64_str)
