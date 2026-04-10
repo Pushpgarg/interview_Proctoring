@@ -90,7 +90,9 @@ async function initCamera() {
 let ws;
 function connectWS() {
   return new Promise((resolve, reject) => {
-    ws = new WebSocket("ws://localhost:8000/ws");
+    // Automatically uses wss:// (secure) if hosted, or ws:// if local
+    const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+    ws = new WebSocket(protocol + window.location.host + "/ws");
 
     ws.addEventListener("open", () => {
       statusDot.classList.add("connected");
