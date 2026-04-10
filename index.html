@@ -3,15 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Proctor</title>
+  <title>AI Proctor — Phase 0</title>
   <link rel="stylesheet" href="/static/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  
-  <h1><span>AI</span> Proctor</h1>
+  <h1><span>AI</span> Proctor — Phase 0</h1>
+
+  <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; width: 100%; max-width: 960px;">
+    <button id="startBtn" style="padding: 12px 24px; background: #22c55e; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.2s;">Start Session</button>
+    <button id="stopBtn" style="padding: 12px 24px; background: #3f3f46; color: #a1a1aa; border: none; border-radius: 6px; cursor: not-allowed; font-weight: bold; font-size: 1rem; transition: 0.2s;" disabled>Stop &amp; Generate Report</button>
+  </div>
 
   <div class="container">
-    <!-- Left: camera feed -->
     <div class="video-panel">
       <header style="display: flex; justify-content: space-between; align-items: center;">
         <span>Live Camera Feed</span>
@@ -25,9 +29,7 @@
       </div>
     </div>
 
-    <!-- Right: sidebar -->
     <div class="sidebar">
-      <!-- Connection status -->
       <div class="card" style="padding:.75rem 1.25rem">
         <div class="status-badge">
           <div class="status-dot" id="statusDot"></div>
@@ -35,7 +37,6 @@
         </div>
       </div>
 
-      <!-- Risk score gauge -->
       <div class="card">
         <h2>Risk Score</h2>
         <div class="gauge-wrap">
@@ -52,11 +53,30 @@
         </div>
       </div>
 
-      <!-- Event log -->
       <div class="card" style="flex:1">
         <h2>Event Log</h2>
         <div class="log-box" id="logBox"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- Report Modal -->
+  <div id="reportModal" style="display: none; position: fixed; inset: 0; background: rgba(15,17,23,0.95); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; padding: 2rem;">
+    <div style="background: #1a1b23; padding: 2rem; border-radius: 12px; width: 100%; max-width: 800px; border: 1px solid #27272a;">
+      <h2 style="margin-bottom: 1.5rem; color: #fff; font-size: 1.5rem;">Post-Session Audit Report</h2>
+
+      <div style="display: flex; gap: 2rem; margin-bottom: 1.5rem; color: #a1a1aa; font-size: 1.1rem; flex-wrap: wrap;">
+        <div>Reading Violations: <strong id="statRead" style="color: #ef4444;">0</strong></div>
+        <div>Speaking Detected: <strong id="statSpeak" style="color: #f97316;">0</strong></div>
+        <div>Looking Away: <strong id="statLook" style="color: #a855f7;">0</strong></div>
+        <div>Tab Switches: <strong id="statTab" style="color: #fff;">0</strong></div>
+      </div>
+
+      <div style="width: 100%; height: 350px; background: #13141b; border-radius: 8px; padding: 1rem; border: 1px solid #27272a;">
+        <canvas id="auditChart"></canvas>
+      </div>
+
+      <button onclick="window.location.reload()" style="margin-top: 1.5rem; padding: 10px 20px; background: #6366f1; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Return to Dashboard</button>
     </div>
   </div>
 
